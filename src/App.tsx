@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { IdentityVerification } from './components/IdentityVerification';
+import { IdentityVerification, EnterpriseVerificationSession } from './components/IdentityVerification';
 import { neuralService, useNeuralIntegration } from './services/neural';
-import { stripeIdentity } from './services/stripe';
+import { stripeIdentity, StripeVerificationInsights } from './services/stripe';
 import { securityService } from './services/security';
 import './styles/brainsait-theme.css';
+import { formatDistanceToNow } from 'date-fns';
 
 interface AppConfig {
   enableNeuralIntegration: boolean;
@@ -24,10 +25,25 @@ const useAppConfig = (): AppConfig => {
   };
 };
 
+const POLL_INTERVAL_MS = 6000;
+const MAX_POLL_ATTEMPTS = 15;
+
+const getEffectiveStatus = (result: StripeVerificationInsights | null | undefined) =>
+  result?.status ?? result?.stripeSession?.status ?? undefined;
+
+const isTerminalStatus = (status?: string) => {
+  if (!status) {
+    return false;
+  }
+  return status !== 'processing';
+};
+
 const HomePage: React.FC = () => {
   const config = useAppConfig();
   const neuralState = useNeuralIntegration();
   const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'ar'>('en');
+  const [latestSession, setLatestSession] = useState<EnterpriseVerificationSession | null>(null);
+  const [securitySnapshot, setSecuritySnapshot] = useState(() => securityService.getReadinessSnapshot());
 
   useEffect(() => {
     // Initialize neural integration if enabled
@@ -37,6 +53,11 @@ const HomePage: React.FC = () => {
 
     // Initialize security features
     securityService.enableRealTimeProtection();
+    setSecuritySnapshot(securityService.getReadinessSnapshot());
+
+    const interval = window.setInterval(() => {
+      setSecuritySnapshot(securityService.getReadinessSnapshot());
+    }, 60000);
 
     // Detect language preference from browser or URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -50,6 +71,10 @@ const HomePage: React.FC = () => {
         setPreferredLanguage('ar');
       }
     }
+
+    return () => {
+      window.clearInterval(interval);
+    };
   }, [config.enableNeuralIntegration]);
 
   const isArabic = preferredLanguage === 'ar';
@@ -131,7 +156,8 @@ const HomePage: React.FC = () => {
             <IdentityVerification
               returnUrl={`${window.location.origin}/verification/result`}
               onSuccess={handleVerificationSuccess}
-              onError={handleVerificationError}
+                onError={handleVerificationError}
+                onSessionCreated={setLatestSession}
             />
           </div>
 
@@ -142,27 +168,77 @@ const HomePage: React.FC = () => {
               <h3 className="bs-heading-sm mb-3">
                 {isArabic ? 'حالة النظام' : 'System Status'}
               </h3>
-              <div className="bs-space-y-4 bs-text-sm">
-                <div className="bs-flex bs-justify-between bs-items-center">
-                  <span>{isArabic ? 'التكامل العصبي' : 'Neural Integration'}</span>
-                  <span className={config.enableNeuralIntegration ? 'bs-status bs-status-success' : 'bs-status bs-status-error'}>
-                    {config.enableNeuralIntegration ? (isArabic ? 'مفعل' : 'Enabled') : (isArabic ? 'معطل' : 'Disabled')}
-                  </span>
+              <dl className="bs-summary-list">
+                <div>
+                  <dt>{isArabic ? 'التكامل العصبي' : 'Neural integration'}</dt>
+                  <dd>{config.enableNeuralIntegration ? (neuralState.isConnected ? (isArabic ? 'متصل' : 'Connected') : (isArabic ? 'قيد إعادة الاتصال' : 'Reconnecting')) : (isArabic ? 'معطل' : 'Disabled')}</dd>
                 </div>
-                <div className="bs-flex bs-justify-between bs-items-center">
-                  <span>{isArabic ? 'النظام الصحي السعودي' : 'Saudi Healthcare'}</span>
-                  <span className={config.enableSaudiHealthcare ? 'bs-status bs-status-success' : 'bs-status bs-status-error'}>
-                    {config.enableSaudiHealthcare ? (isArabic ? 'مفعل' : 'Enabled') : (isArabic ? 'معطل' : 'Disabled')}
-                  </span>
+                <div>
+                  <dt>{isArabic ? 'آخر مزامنة' : 'Last sync'}</dt>
+                  <dd>{neuralState.lastSyncTimestamp ? formatDistanceToNow(new Date(neuralState.lastSyncTimestamp), { addSuffix: true }) : (isArabic ? 'لم يتم التسجيل بعد' : 'Not yet recorded')}</dd>
                 </div>
-                <div className="bs-flex bs-justify-between bs-items-center">
-                  <span>{isArabic ? 'الهوية السودانية' : 'Sudan National ID'}</span>
-                  <span className={config.enableSudanNationalId ? 'bs-status bs-status-success' : 'bs-status bs-status-error'}>
-                    {config.enableSudanNationalId ? (isArabic ? 'مفعل' : 'Enabled') : (isArabic ? 'معطل' : 'Disabled')}
-                  </span>
+                <div>
+                  <dt>{isArabic ? 'التكامل مع نفيس' : 'Saudi healthcare integration'}</dt>
+                  <dd>{config.enableSaudiHealthcare ? (isArabic ? 'مفعل' : 'Enabled') : (isArabic ? 'معطل' : 'Disabled')}</dd>
                 </div>
-              </div>
+                <div>
+                  <dt>{isArabic ? 'الهوية الوطنية السودانية' : 'Sudan national ID'}</dt>
+                  <dd>{config.enableSudanNationalId ? (isArabic ? 'مفعل' : 'Enabled') : (isArabic ? 'معطل' : 'Disabled')}</dd>
+                </div>
+              </dl>
             </div>
+
+              {latestSession && (
+                <div className="bs-card">
+                  <h3 className="bs-heading-sm mb-3">
+                    {isArabic ? 'أحدث جلسة Stripe' : 'Latest Stripe session'}
+                  </h3>
+                  <dl className="bs-summary-list">
+                    <div>
+                      <dt>{isArabic ? 'معرّف الجلسة' : 'Session ID'}</dt>
+                      <dd className="bs-mono">{latestSession.id}</dd>
+                    </div>
+                    {latestSession.oid && (
+                      <div>
+                        <dt>{isArabic ? 'معرّف OID' : 'BrainSAIT OID'}</dt>
+                        <dd className="bs-mono">{latestSession.oid}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>{isArabic ? 'نوع التحقق' : 'Verification type'}</dt>
+                      <dd>{latestSession.verificationType === 'id_number' ? (isArabic ? 'رقم الهوية' : 'ID number') : (isArabic ? 'المستند' : 'Document')}</dd>
+                    </div>
+                    <div>
+                      <dt>{isArabic ? 'وقت الإنشاء' : 'Created'} </dt>
+                      <dd>{formatDistanceToNow(new Date(latestSession.createdAt), { addSuffix: true })}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
+              <div className="bs-card">
+                <h3 className="bs-heading-sm mb-3">
+                  {isArabic ? 'الوضع الأمني' : 'Security posture'}
+                </h3>
+                <dl className="bs-summary-list">
+                  <div>
+                    <dt>{isArabic ? 'كشف الاحتيال المتقدم' : 'Advanced fraud detection'}</dt>
+                    <dd>{securitySnapshot.enableAdvancedFraudDetection ? (isArabic ? 'مفعل' : 'Enabled') : (isArabic ? 'معطل' : 'Disabled')}</dd>
+                  </div>
+                  <div>
+                    <dt>{isArabic ? 'المراقبة الفورية' : 'Real-time monitoring'}</dt>
+                    <dd>{securitySnapshot.realTimeMonitoringActive ? (isArabic ? 'نشطة' : 'Active') : (isArabic ? 'غير مفعلة' : 'Inactive')}</dd>
+                  </div>
+                  <div>
+                    <dt>{isArabic ? 'بصمة الجهاز' : 'Device fingerprint'}</dt>
+                    <dd>{securitySnapshot.deviceFingerprintingActive ? (isArabic ? 'مسجلة' : 'Captured') : (isArabic ? 'قيد الإنشاء' : 'Pending')}</dd>
+                  </div>
+                  <div>
+                    <dt>{isArabic ? 'سياسة أمن المحتوى' : 'Content security policy'}</dt>
+                    <dd>{securitySnapshot.cspActive ? (isArabic ? 'مراقبة' : 'Monitored') : (isArabic ? 'غير مراقبة' : 'Not monitored')}</dd>
+                  </div>
+                </dl>
+              </div>
 
             {/* OID Information */}
             <div className="bs-card">
@@ -242,28 +318,171 @@ const HomePage: React.FC = () => {
 };
 
 const VerificationResultPage: React.FC = () => {
-  const [verificationResult, setVerificationResult] = useState<any>(null);
+  const [verificationResult, setVerificationResult] = useState<StripeVerificationInsights | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollAttempts, setPollAttempts] = useState(0);
+  const [pollingError, setPollingError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [manualRefreshPending, setManualRefreshPending] = useState(false);
 
-  useEffect(() => {
-    const handleVerificationResult = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('session_id');
+  const sessionIdRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const attemptsRef = useRef(0);
 
-      if (sessionId) {
-        try {
-          const result = await stripeIdentity.checkVerificationStatus(sessionId);
-          setVerificationResult(result);
-        } catch (error) {
-          console.error('Error checking verification result:', error);
-        }
+  const refreshStatus = useCallback(async () => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) {
+      return null;
+    }
+
+    try {
+      const result = await stripeIdentity.checkVerificationStatus(sessionId);
+      if (sessionIdRef.current !== sessionId) {
+        return null;
+      }
+      setVerificationResult(result);
+      setLastUpdatedAt(new Date());
+      setPollingError(null);
+      return result;
+    } catch (error) {
+      console.error('Error checking verification result:', error);
+      if (sessionIdRef.current === sessionId) {
+        setPollingError(error instanceof Error ? error.message : 'Unknown error');
+      }
+      return null;
+    }
+  }, []);
+
+  const stopPollingLoop = useCallback((options?: { skipState?: boolean }) => {
+    if (pollTimerRef.current !== null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    attemptsRef.current = 0;
+    if (!options?.skipState) {
+      setIsPolling(false);
+    }
+  }, []);
+
+  const startPollingLoop = useCallback(() => {
+    if (pollTimerRef.current !== null) {
+      return;
+    }
+
+    setIsPolling(true);
+    attemptsRef.current = 0;
+    setPollAttempts(0);
+    setPollingError(null);
+
+    pollTimerRef.current = window.setInterval(async () => {
+      attemptsRef.current += 1;
+      setPollAttempts(attemptsRef.current);
+
+      const nextResult = await refreshStatus();
+      const nextStatus = getEffectiveStatus(nextResult);
+
+      if (!nextResult || isTerminalStatus(nextStatus)) {
+        stopPollingLoop();
+        return;
       }
 
+      if (attemptsRef.current >= MAX_POLL_ATTEMPTS) {
+        setPollingError('Automated polling paused after multiple attempts. Use manual refresh to check again.');
+        stopPollingLoop();
+      }
+    }, POLL_INTERVAL_MS);
+  }, [refreshStatus, stopPollingLoop]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+
+    if (!sessionId) {
+      setPollingError('Missing verification session identifier.');
       setIsLoading(false);
+      return;
+    }
+
+    sessionIdRef.current = sessionId;
+    let canceled = false;
+
+    const initialize = async () => {
+      setIsLoading(true);
+      const initialResult = await refreshStatus();
+      if (canceled) {
+        return;
+      }
+      setIsLoading(false);
+
+      const status = getEffectiveStatus(initialResult);
+      if (!isTerminalStatus(status)) {
+        startPollingLoop();
+      } else {
+        stopPollingLoop();
+      }
     };
 
-    handleVerificationResult();
-  }, []);
+    initialize();
+
+    return () => {
+      canceled = true;
+      sessionIdRef.current = null;
+      stopPollingLoop({ skipState: true });
+    };
+  }, [refreshStatus, startPollingLoop, stopPollingLoop]);
+
+  const handleManualRefresh = useCallback(async () => {
+    if (manualRefreshPending || !sessionIdRef.current) {
+      return;
+    }
+
+    setManualRefreshPending(true);
+    const result = await refreshStatus();
+    const status = getEffectiveStatus(result);
+
+    if (!isTerminalStatus(status)) {
+      startPollingLoop();
+    } else {
+      stopPollingLoop();
+    }
+
+    setManualRefreshPending(false);
+  }, [manualRefreshPending, refreshStatus, startPollingLoop, stopPollingLoop]);
+
+  const effectiveStatus = getEffectiveStatus(verificationResult);
+  const isVerified = effectiveStatus === 'verified';
+  const isProcessing = effectiveStatus === 'processing';
+  const statusIcon = isVerified ? '✓' : isProcessing ? '⏳' : '✗';
+  const statusColor = isVerified
+    ? 'var(--bs-success)'
+    : isProcessing
+      ? 'var(--bs-warning)'
+      : 'var(--bs-error)';
+  const statusHeading = isVerified
+    ? 'Verification Successful'
+    : isProcessing
+      ? 'Verification In Progress'
+      : effectiveStatus === 'requires_input'
+        ? 'Additional Steps Required'
+        : 'Verification Pending';
+
+  const statusMessage = (() => {
+    switch (effectiveStatus) {
+      case 'verified':
+        return 'Your identity has been successfully verified.';
+      case 'requires_input':
+        return 'Stripe Identity requires additional steps. Follow the guidance sent to your contact.';
+      case 'processing':
+        return 'Stripe Identity is still processing this verification. We\'ll refresh the status automatically.';
+      case 'canceled':
+        return 'This verification session was canceled. Launch a new session to continue.';
+      case undefined:
+        return 'We\'re preparing your session details. This page will update shortly.';
+      default:
+        return 'Unable to verify the identity automatically. Please retry or escalate to manual review.';
+    }
+  })();
 
   if (isLoading) {
     return (
@@ -281,27 +500,99 @@ const VerificationResultPage: React.FC = () => {
     <div className="bs-min-h-screen bs-flex bs-items-center bs-justify-center">
       <div className="bs-animated-bg"></div>
       <div className="bs-container">
-        <div className="bs-card bs-text-center max-w-md mx-auto">
-          {verificationResult?.verified ? (
-            <div>
-              <div className="text-4xl mb-4" style={{ color: 'var(--bs-success)' }}>✓</div>
-              <h2 className="bs-heading-md mb-2">Verification Successful</h2>
-              <p style={{ color: 'var(--bs-text-secondary)' }}>Your identity has been successfully verified.</p>
+        <div className="max-w-3xl mx-auto bs-space-y-6">
+          <div className="bs-card bs-text-center">
+            <div className="text-4xl mb-4" style={{ color: statusColor }}>
+              {statusIcon}
             </div>
-          ) : (
-            <div>
-              <div className="text-4xl mb-4" style={{ color: 'var(--bs-error)' }}>✗</div>
-              <h2 className="bs-heading-md mb-2">Verification Failed</h2>
-              <p style={{ color: 'var(--bs-text-secondary)' }}>Unable to verify your identity. Please try again.</p>
+            <h2 className="bs-heading-md mb-2">{statusHeading}</h2>
+            <p style={{ color: 'var(--bs-text-secondary)' }}>{statusMessage}</p>
+            {isPolling ? (
+              <p className="bs-text-sm mt-4" style={{ color: 'var(--bs-text-secondary)' }}>
+                Auto-refreshing every {Math.round(POLL_INTERVAL_MS / 1000)} seconds · {pollAttempts} / {MAX_POLL_ATTEMPTS} polling cycles completed.
+              </p>
+            ) : (
+              <p className="bs-text-sm mt-4" style={{ color: 'var(--bs-text-secondary)' }}>
+                Auto-polling is idle. Refresh manually to check the latest status.
+              </p>
+            )}
+            {lastUpdatedAt && (
+              <p className="bs-text-xs mt-2" style={{ color: 'var(--bs-text-muted)' }}>
+                Last updated {formatDistanceToNow(lastUpdatedAt, { addSuffix: true })}.
+              </p>
+            )}
+            {pollingError && (
+              <div className="bs-alert bs-alert-warning mt-4">
+                <p>{pollingError}</p>
+              </div>
+            )}
+            <div className="bs-flex bs-flex-col sm:bs-flex-row bs-items-center bs-justify-center bs-gap-3 mt-6">
+              <button
+                onClick={handleManualRefresh}
+                className="bs-btn bs-btn-glass w-full sm:bs-w-auto"
+                disabled={manualRefreshPending}
+              >
+                {manualRefreshPending ? 'Refreshing…' : 'Refresh status'}
+              </button>
+              <button
+                onClick={() => (window.location.href = '/')}
+                className="bs-btn bs-btn-primary w-full sm:bs-w-auto"
+              >
+                Return to Home
+              </button>
+            </div>
+          </div>
+
+          <div className="bs-card bs-summary-card">
+            <h3 className="bs-heading-sm mb-3">Verification summary</h3>
+            <dl className="bs-summary-list">
+              <div>
+                <dt>Status</dt>
+                <dd>{effectiveStatus || 'unknown'}</dd>
+              </div>
+              <div>
+                <dt>Stripe session status</dt>
+                <dd>{verificationResult?.stripeSession?.status || 'unavailable'}</dd>
+              </div>
+              <div>
+                <dt>Auto-polling</dt>
+                <dd>{isPolling ? `Active (${pollAttempts}/${MAX_POLL_ATTEMPTS})` : 'Idle'}</dd>
+              </div>
+              <div>
+                <dt>Last updated</dt>
+                <dd>{lastUpdatedAt ? formatDistanceToNow(lastUpdatedAt, { addSuffix: true }) : 'awaiting update'}</dd>
+              </div>
+              <div>
+                <dt>BrainSAIT OID</dt>
+                <dd className="bs-mono">{verificationResult?.brainsaitContext?.session_oid || 'not assigned'}</dd>
+              </div>
+              <div>
+                <dt>Risk score</dt>
+                <dd>{verificationResult?.brainsaitContext?.risk_score ?? 'n/a'}</dd>
+              </div>
+            </dl>
+          </div>
+
+          {verificationResult?.neuralContext && (
+            <div className="bs-card bs-summary-card">
+              <h3 className="bs-heading-sm mb-3">Neural context</h3>
+              <pre className="bs-code-block">{JSON.stringify(verificationResult.neuralContext, null, 2)}</pre>
             </div>
           )}
 
-          <button
-            onClick={() => window.location.href = '/'}
-            className="bs-btn bs-btn-primary bs-btn-lg mt-6"
-          >
-            Return to Home
-          </button>
+          {verificationResult?.regionalData && (
+            <div className="bs-card bs-summary-card">
+              <h3 className="bs-heading-sm mb-3">Regional data</h3>
+              <pre className="bs-code-block">{JSON.stringify(verificationResult.regionalData, null, 2)}</pre>
+            </div>
+          )}
+
+          {verificationResult?.verificationReport && (
+            <div className="bs-card bs-summary-card">
+              <h3 className="bs-heading-sm mb-3">Stripe verification report</h3>
+              <pre className="bs-code-block">{JSON.stringify(verificationResult.verificationReport, null, 2)}</pre>
+            </div>
+          )}
         </div>
       </div>
     </div>

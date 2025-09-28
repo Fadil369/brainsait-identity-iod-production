@@ -97,7 +97,7 @@ export async function onRequestGet(context: EventContext<Env, any, any>) {
 }
 
 export async function onRequestDelete(context: EventContext<Env, any, any>) {
-  const { request, env, params } = context;
+  const { env, params } = context;
   const documentId = params.documentId as string;
 
   try {
@@ -148,7 +148,7 @@ export async function onRequestDelete(context: EventContext<Env, any, any>) {
   }
 }
 
-export async function onRequestOptions(context: EventContext<Env, any, any>) {
+export async function onRequestOptions(_context: EventContext<Env, any, any>) {
   return new Response(null, {
     status: 200,
     headers: {

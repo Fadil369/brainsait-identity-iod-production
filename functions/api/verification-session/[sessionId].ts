@@ -10,7 +10,7 @@ interface Env {
 }
 
 export async function onRequestGet(context: EventContext<Env, any, any>) {
-  const { request, env, params } = context;
+  const { env, params } = context;
   const sessionId = params.sessionId as string;
 
   try {

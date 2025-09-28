@@ -190,7 +190,7 @@ export class SudanNIDIntegrationService {
   }
 
   getSupportedMinistries() {
-    return this.supportedMinistries.map(code => ({
+    return this.supportedMinistries.map((code: string) => ({
       code,
       name: this.getMinistryName(code)
     }));

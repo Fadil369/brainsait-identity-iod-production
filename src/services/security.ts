@@ -19,6 +19,9 @@ export class BrainSAITSecurityService {
   private static instance: BrainSAITSecurityService;
   private securityMetrics: Map<string, SecurityMetrics> = new Map();
   private config: SecurityConfig;
+  private realTimeMonitoringActive = false;
+  private deviceFingerprintingActive = false;
+  private cspActive = false;
 
   private constructor() {
     this.config = {
@@ -58,6 +61,7 @@ export class BrainSAITSecurityService {
 
   private enforceCSP() {
     // Monitor CSP violations
+    this.cspActive = true;
     document.addEventListener('securitypolicyviolation', (event) => {
       console.warn('CSP Violation detected:', {
         violatedDirective: event.violatedDirective,
@@ -87,7 +91,7 @@ export class BrainSAITSecurityService {
     ];
 
     // This would typically be done server-side, but we can monitor client-side
-    console.log('Security headers monitoring active for BrainSAIT IOD');
+    console.log('Security headers monitoring active for BrainSAIT IOD', { requiredHeaders });
   }
 
   private initializeDeviceFingerprinting() {
@@ -96,6 +100,7 @@ export class BrainSAITSecurityService {
 
     // Store in session for verification tracking
     sessionStorage.setItem('brainsait_device_fp', fingerprint);
+    this.deviceFingerprintingActive = true;
 
     return fingerprint;
   }
@@ -232,13 +237,13 @@ export class BrainSAITSecurityService {
     );
   }
 
-  private detectLocationMismatch(countryCode: string, ipAddress?: string): boolean {
+  private detectLocationMismatch(_countryCode: string, _ipAddress?: string): boolean {
     // This would typically involve IP geolocation service
     // For now, return false as placeholder
     return false;
   }
 
-  private async detectVPNUsage(ipAddress?: string): Promise<boolean> {
+  private async detectVPNUsage(_ipAddress?: string): Promise<boolean> {
     // This would typically involve VPN detection service
     // For now, return false as placeholder
     return false;
@@ -354,6 +359,7 @@ export class BrainSAITSecurityService {
     });
 
     console.log('BrainSAIT real-time protection enabled');
+    this.realTimeMonitoringActive = true;
   }
 
   private validateDOMChanges(mutation: MutationRecord) {
@@ -374,6 +380,16 @@ export class BrainSAITSecurityService {
         }
       });
     }
+  }
+
+  public getReadinessSnapshot() {
+    return {
+      ...this.config,
+      cspActive: this.cspActive,
+      realTimeMonitoringActive: this.realTimeMonitoringActive,
+      deviceFingerprintingActive: this.deviceFingerprintingActive,
+      timestamp: new Date().toISOString()
+    };
   }
 }
 

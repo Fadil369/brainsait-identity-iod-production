@@ -70,7 +70,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
     });
 
     // Store document metadata in D1
-    const result = await env.DB.prepare(`
+    await env.DB.prepare(`
       INSERT INTO document_storage
       (document_id, session_oid, document_type, file_name, file_size, file_type, country_code, storage_path, upload_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploaded')
@@ -83,7 +83,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
       file.type,
       countryCode || 'US',
       documentId
-    ).run();
+  ).run();
 
     // Update verification session with document reference
     await env.DB.prepare(`
@@ -130,7 +130,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
   }
 }
 
-export async function onRequestOptions(context: EventContext<Env, any, any>) {
+export async function onRequestOptions(_context: EventContext<Env, any, any>) {
   return new Response(null, {
     status: 200,
     headers: {

@@ -236,7 +236,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
   }
 }
 
-export async function onRequestOptions(context: EventContext<Env, any, any>) {
+export async function onRequestOptions(_context: EventContext<Env, any, any>) {
   return new Response(null, {
     status: 200,
     headers: {

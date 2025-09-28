@@ -9,7 +9,7 @@ interface Env {
 }
 
 export async function onRequestGet(context: EventContext<Env, any, any>) {
-  const { request, env, params } = context;
+  const { env, params } = context;
   const sessionOid = params.sessionOid as string;
 
   try {
@@ -149,7 +149,7 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
   }
 }
 
-export async function onRequestOptions(context: EventContext<Env, any, any>) {
+export async function onRequestOptions(_context: EventContext<Env, any, any>) {
   return new Response(null, {
     status: 200,
     headers: {

@@ -1,6 +1,30 @@
 import { loadStripe } from '@stripe/stripe-js';
 import { securityService } from './security';
 
+export interface StripeReadiness {
+  publishableKeyPresent: boolean;
+  stripeInitialized: boolean;
+  neuralSyncConfigured: boolean;
+  regionalSupport: {
+    saudi: boolean;
+    sudan: boolean;
+  };
+  timestamp: string;
+}
+
+export interface StripeVerificationInsights {
+  status: string | undefined;
+  verified: boolean | undefined;
+  requiresInput: boolean | undefined;
+  processing: boolean | undefined;
+  error: any;
+  verificationReport: any;
+  stripeSession: any;
+  brainsaitContext: any;
+  neuralContext: any;
+  regionalData: any;
+}
+
 // Production Stripe configuration
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
@@ -15,6 +39,7 @@ export const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 // Integrates with Neural OID Digital Twin Ecosystem
 export class StripeIdentityService {
   private stripe: any;
+  private stripeReady = false;
   private oidPrefix = '1.3.6.1.4.1.61026'; // BrainSAIT root OID
   private neuralSyncEndpoint = import.meta.env.VITE_NEURAL_SYNC_ENDPOINT;
   private nphiesEndpoint = import.meta.env.VITE_NPHIES_API_ENDPOINT;
@@ -29,6 +54,14 @@ export class StripeIdentityService {
     if (!this.stripe) {
       throw new Error('Failed to initialize Stripe');
     }
+    this.stripeReady = true;
+  }
+
+  private async ensureStripe() {
+    if (!this.stripeReady || !this.stripe) {
+      await this.initializeStripe();
+    }
+    return this.stripe;
   }
 
   private generateOID(type: 'verification' | 'healthcare' | 'national', countryCode?: string): string {
@@ -36,6 +69,33 @@ export class StripeIdentityService {
     const typeId = type === 'verification' ? '1' : type === 'healthcare' ? '2' : '3';
     const country = countryCode === 'SA' ? '682' : countryCode === 'SD' ? '729' : '000';
     return `${this.oidPrefix}.${typeId}.${country}.${timestamp}`;
+  }
+
+  async performReadinessCheck(): Promise<StripeReadiness> {
+    const result: StripeReadiness = {
+      publishableKeyPresent: Boolean(STRIPE_PUBLISHABLE_KEY),
+      stripeInitialized: false,
+      neuralSyncConfigured: Boolean(this.neuralSyncEndpoint),
+      regionalSupport: {
+        saudi: Boolean(this.nphiesEndpoint),
+        sudan: Boolean(this.sudanNidEndpoint)
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      await this.ensureStripe();
+      result.stripeInitialized = true;
+    } catch (error) {
+      console.error('Stripe readiness check failed:', error);
+      result.stripeInitialized = false;
+    }
+
+    return result;
+  }
+
+  getPublishableKey() {
+    return STRIPE_PUBLISHABLE_KEY;
   }
 
   /**
@@ -190,9 +250,7 @@ export class StripeIdentityService {
    * Redirect to Stripe Identity Verification
    */
   async redirectToVerification(sessionId: string) {
-    if (!this.stripe) {
-      await this.initializeStripe();
-    }
+    await this.ensureStripe();
 
     try {
       const { error } = await this.stripe.redirectToVerification({
@@ -236,16 +294,22 @@ export class StripeIdentityService {
   /**
    * Check verification status
    */
-  async checkVerificationStatus(sessionId: string) {
+  async checkVerificationStatus(sessionId: string): Promise<StripeVerificationInsights> {
     const session = await this.getVerificationSession(sessionId);
 
+    const verificationStatus = session?.verification_status ?? {};
+
     return {
-      status: session.status,
-      verified: session.status === 'verified',
-      requiresInput: session.status === 'requires_input',
-      processing: session.status === 'processing',
-      error: session.last_error,
-      verificationReport: session.last_verification_report
+      status: verificationStatus.status,
+      verified: verificationStatus.verified,
+      requiresInput: verificationStatus.requires_input,
+      processing: verificationStatus.processing,
+      error: verificationStatus.last_error ?? session?.last_error,
+      verificationReport: verificationStatus.verification_report ?? session?.last_verification_report,
+      stripeSession: session?.stripe_session,
+      brainsaitContext: session?.brainsait_context,
+      neuralContext: session?.neural_context,
+      regionalData: session?.regional_data
     };
   }
 }
