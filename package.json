@@ -1,0 +1,60 @@
+{
+  "name": "@brainsait/identity-iod-production",
+  "version": "1.0.0",
+  "description": "BrainSAIT Identity on Demand - Production Identity Verification App",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "deploy:production": "npm run build && wrangler pages deploy dist --compatibility-date=2024-01-01 --env=production",
+    "lint": "eslint src --ext .js,.ts,.tsx",
+    "format": "prettier --write src/**/*.{js,ts,tsx,css,html}",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stripe/stripe-js": "^4.1.0",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^0.279.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.15.0",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.22",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.7.2",
+    "@typescript-eslint/parser": "^6.7.2",
+    "@vitejs/plugin-react": "^4.0.4",
+    "autoprefixer": "^10.4.15",
+    "eslint": "^8.49.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "postcss": "^8.4.29",
+    "prettier": "^3.0.3",
+    "tailwindcss": "^3.3.3",
+    "terser": "^5.44.0",
+    "typescript": "^5.2.2",
+    "vite": "^4.4.9",
+    "wrangler": "^3.10.1"
+  },
+  "keywords": [
+    "brainsait",
+    "identity",
+    "verification",
+    "stripe",
+    "cloudflare",
+    "iod",
+    "production"
+  ],
+  "author": "BrainSAIT Development Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brainsait/identity-iod-production"
+  }
+}

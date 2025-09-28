@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrainSAIT IOD - Identity on Demand</title>
+
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="BrainSAIT Identity on Demand - Advanced identity verification with neural integration and regional support for Saudi Healthcare and Sudan National Identity systems." />
+  <meta name="keywords" content="BrainSAIT, identity verification, neural integration, OID, Saudi Arabia, Sudan, healthcare, NPHIES" />
+  <meta name="author" content="BrainSAIT Development Team" />
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="BrainSAIT IOD - Identity on Demand" />
+  <meta property="og:description" content="Advanced identity verification with neural integration and regional support" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://identity.brainsait.com" />
+
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="BrainSAIT IOD - Identity on Demand" />
+  <meta name="twitter:description" content="Advanced identity verification with neural integration and regional support" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Security Headers -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://api.stripe.com https://api.brainsait.com https://neural.brainsait.com https://nphies.sa.gov.sa https://nid.gov.sd; img-src 'self' data:; frame-src https://js.stripe.com;">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+
+  <!-- RTL Support -->
+  <style>
+    html[dir="rtl"] body {
+      direction: rtl;
+      text-align: right;
+    }
+
+    /* Loading Animation */
+    .loading-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, #0a0a0a, #050505);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .loading-container.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top-color: #00ff88;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      margin-top: 1rem;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 300;
+    }
+
+    .loading-oid {
+      margin-top: 0.5rem;
+      color: rgba(255, 255, 255, 0.5);
+      font-family: 'Monaco', monospace;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading" class="loading-container">
+    <div style="text-align: center;">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Initializing BrainSAIT Neural System...</div>
+      <div class="loading-oid">OID: 1.3.6.1.4.1.61026</div>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div id="root"></div>
+
+  <!-- Stripe.js -->
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <!-- Main Application Script -->
+  <script type="module" src="/src/main.tsx"></script>
+
+  <!-- Loading Screen Management -->
+  <script>
+    // Hide loading screen when app is ready
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        const loading = document.getElementById('loading');
+        if (loading) {
+          loading.classList.add('fade-out');
+          setTimeout(function() {
+            loading.style.display = 'none';
+          }, 500);
+        }
+      }, 1000);
+    });
+
+    // Language detection
+    const urlParams = new URLSearchParams(window.location.search);
+    const lang = urlParams.get('lang');
+    const browserLang = navigator.language || navigator.languages[0];
+
+    if (lang === 'ar' || (!lang && browserLang.startsWith('ar'))) {
+      document.documentElement.setAttribute('dir', 'rtl');
+      document.documentElement.setAttribute('lang', 'ar');
+    } else {
+      document.documentElement.setAttribute('dir', 'ltr');
+      document.documentElement.setAttribute('lang', 'en');
+    }
+  </script>
+</body>
+</html>
