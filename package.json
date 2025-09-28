@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler pages deploy dist",
-    "deploy:production": "npm run build && wrangler pages deploy dist --compatibility-date=2024-01-01 --env=production",
+    "deploy:production": "npm run build && wrangler pages deploy dist --project-name brainsait-identity-iod-production",
     "lint": "eslint src --ext .js,.ts,.tsx",
     "format": "prettier --write src/**/*.{js,ts,tsx,css,html}",
     "type-check": "tsc --noEmit"
